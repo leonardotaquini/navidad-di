@@ -1,10 +1,12 @@
-import Image from "next/image";
-
 import { CountdownTimer } from "@/components/countdown-timer";
+import { MusicPlayer } from "@/components/music-player";
 import { Particles } from "@/components/ui/particles";
 import { SparklesText } from "@/components/ui/sparkles-text";
+import { getChristmasTracks } from "@/lib/theaudiodb";
 
-export default function Home() {
+export default async function Home() {
+  const tracks = await getChristmasTracks();
+
   return (
     <main className="relative flex min-h-dvh w-full flex-col items-center justify-center overflow-hidden bg-[radial-gradient(130%_130%_at_50%_0%,#143d2b_0%,#0b2a20_45%,#4a0d14_100%)] px-4 py-4">
       {/* Nieve cayendo */}
@@ -28,21 +30,8 @@ export default function Home() {
           ¿Cuánto falta para Navidad?
         </SparklesText>
 
-        {/* Foto protagonista */}
-        <div className="relative">
-          {/* Resplandor detrás de la foto */}
-          <div className="absolute -inset-3 rounded-[2rem] bg-[conic-gradient(from_0deg,#e8b04b,#c1121f,#0b3d2e,#e8b04b)] opacity-70 blur-xl" />
-          <div className="relative overflow-hidden rounded-[1.5rem] border-4 border-navidad-dorado/80 shadow-2xl">
-            <Image
-              src="/erwin.jpeg"
-              alt="Erwin, el elfo del Taller de Santa"
-              width={320}
-              height={480}
-              priority
-              className="h-auto w-[140px] object-cover sm:w-[170px]"
-            />
-          </div>
-        </div>
+        {/* Foto protagonista + reproductor de música navideña */}
+        <MusicPlayer tracks={tracks} />
 
         <CountdownTimer
           mes={11}
