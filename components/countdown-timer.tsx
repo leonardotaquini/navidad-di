@@ -13,22 +13,25 @@ type TimeLeft = {
 
 const CERO: TimeLeft = { dias: 0, horas: 0, minutos: 0, segundos: 0 };
 
-/** Devuelve la próxima Navidad (25 de diciembre 00:00) a partir de `now`. */
-function proximaNavidad(now: Date): Date {
-  const navidadEsteAnio = new Date(now.getFullYear(), 11, 25, 0, 0, 0, 0);
-  // Si ya pasó el 25/12 de este año, apuntamos al del año que viene.
-  if (now.getTime() >= navidadEsteAnio.getTime()) {
-    return new Date(now.getFullYear() + 1, 11, 25, 0, 0, 0, 0);
+/**
+ * Devuelve la próxima ocurrencia de `mes`/`dia` a las 00:00 a partir de `now`.
+ * `mes` es 0-indexado (0 = enero, 11 = diciembre).
+ */
+function proximaFecha(now: Date, mes: number, dia: number): Date {
+  const esteAnio = new Date(now.getFullYear(), mes, dia, 0, 0, 0, 0);
+  // Si ya pasó este año, apuntamos al del año que viene.
+  if (now.getTime() >= esteAnio.getTime()) {
+    return new Date(now.getFullYear() + 1, mes, dia, 0, 0, 0, 0);
   }
-  return navidadEsteAnio;
+  return esteAnio;
 }
 
-function esNavidad(now: Date): boolean {
-  return now.getMonth() === 11 && now.getDate() === 25;
+function esElDia(now: Date, mes: number, dia: number): boolean {
+  return now.getMonth() === mes && now.getDate() === dia;
 }
 
-function calcular(now: Date): TimeLeft {
-  const delta = proximaNavidad(now).getTime() - now.getTime();
+function calcular(now: Date, mes: number, dia: number): TimeLeft {
+  const delta = proximaFecha(now, mes, dia).getTime() - now.getTime();
   if (delta <= 0) return CERO;
 
   const segundosTotales = Math.floor(delta / 1000);
@@ -47,10 +50,35 @@ const BLOQUES: { clave: keyof TimeLeft; etiqueta: string }[] = [
   { clave: "segundos", etiqueta: "Seg" },
 ];
 
-export function CountdownTimer() {
+type CountdownTimerProps = {
+  /** Mes destino, 0-indexado (0 = enero, 11 = diciembre). */
+  mes: number;
+  /** Día del mes destino. */
+  dia: number;
+  /** Texto que se muestra arriba del contador, ej: "Falta para el Aguinaldo". */
+  titulo: string;
+  /** Mensaje grande cuando llega el día. */
+  mensajeLlegada: string;
+  /** Subtítulo opcional debajo del mensaje de llegada. */
+  mensajeSub?: string;
+  /** Si dispara confeti al llegar el día. */
+  conConfeti?: boolean;
+  /** Versión reducida, para contadores secundarios. */
+  compacto?: boolean;
+};
+
+export function CountdownTimer({
+  mes,
+  dia,
+  titulo,
+  mensajeLlegada,
+  mensajeSub,
+  conConfeti = false,
+  compacto = false,
+}: CountdownTimerProps) {
   const [montado, setMontado] = useState(false);
   const [tiempo, setTiempo] = useState<TimeLeft>(CERO);
-  const [navidad, setNavidad] = useState(false);
+  const [llego, setLlego] = useState(false);
   const confettiRef = useRef<ConfettiRef>(null);
 
   useEffect(() => {
@@ -58,53 +86,82 @@ export function CountdownTimer() {
 
     const tick = () => {
       const now = new Date();
-      setNavidad(esNavidad(now));
-      setTiempo(calcular(now));
+      setLlego(esElDia(now, mes, dia));
+      setTiempo(calcular(now, mes, dia));
     };
 
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [mes, dia]);
 
-  // Dispara confeti al llegar la Navidad.
+  // Dispara confeti al llegar el día.
   useEffect(() => {
-    if (navidad) {
+    if (llego && conConfeti) {
       confettiRef.current?.fire({ particleCount: 180, spread: 120 });
     }
-  }, [navidad]);
+  }, [llego, conConfeti]);
 
-  if (montado && navidad) {
+  if (montado && llego) {
     return (
       <div className="relative flex flex-col items-center gap-4">
-        <Confetti
-          ref={confettiRef}
-          manualstart
-          className="pointer-events-none fixed inset-0 z-50 size-full"
-        />
+        {conConfeti && (
+          <Confetti
+            ref={confettiRef}
+            manualstart
+            className="pointer-events-none fixed inset-0 z-50 size-full"
+          />
+        )}
         <p className="text-center text-4xl font-bold text-navidad-dorado drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)] sm:text-6xl">
-          ¡Feliz Navidad! 🎄
+          {mensajeLlegada}
         </p>
-        <p className="text-lg text-white/80">Que la pases hermoso 🎅</p>
+        {mensajeSub && <p className="text-lg text-white/80">{mensajeSub}</p>}
       </div>
     );
   }
 
   return (
-    <div className="flex items-stretch justify-center gap-2 sm:gap-4">
-      {BLOQUES.map(({ clave, etiqueta }) => (
-        <div
-          key={clave}
-          className="flex min-w-[68px] flex-col items-center gap-1 rounded-2xl border border-navidad-dorado/40 bg-white/5 px-3 py-4 shadow-lg backdrop-blur-md sm:min-w-[104px] sm:px-6 sm:py-6"
-        >
-          <span className="font-mono text-4xl font-bold tabular-nums text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] sm:text-7xl">
-            {montado ? String(tiempo[clave]).padStart(2, "0") : "--"}
-          </span>
-          <span className="text-[0.65rem] font-semibold uppercase tracking-widest text-navidad-dorado sm:text-sm">
-            {etiqueta}
-          </span>
-        </div>
-      ))}
+    <div className={compacto ? "flex flex-col items-center gap-2" : "flex flex-col items-center gap-3"}>
+      <p
+        className={
+          compacto
+            ? "text-center text-xs font-semibold uppercase tracking-widest text-navidad-dorado"
+            : "text-center text-sm font-semibold uppercase tracking-widest text-navidad-dorado sm:text-base"
+        }
+      >
+        {titulo}
+      </p>
+      <div className={compacto ? "flex items-stretch justify-center gap-1.5" : "flex items-stretch justify-center gap-2 sm:gap-4"}>
+        {BLOQUES.map(({ clave, etiqueta }) => (
+          <div
+            key={clave}
+            className={
+              compacto
+                ? "flex min-w-[48px] flex-col items-center gap-0.5 rounded-xl border border-navidad-dorado/40 bg-white/5 px-2 py-2 shadow-md backdrop-blur-md"
+                : "flex min-w-[56px] flex-col items-center gap-1 rounded-2xl border border-navidad-dorado/40 bg-white/5 px-3 py-3 shadow-lg backdrop-blur-md sm:min-w-[84px] sm:px-5 sm:py-4"
+            }
+          >
+            <span
+              className={
+                compacto
+                  ? "font-mono text-xl font-bold tabular-nums text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] sm:text-2xl"
+                  : "font-mono text-3xl font-bold tabular-nums text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] sm:text-5xl"
+              }
+            >
+              {montado ? String(tiempo[clave]).padStart(2, "0") : "--"}
+            </span>
+            <span
+              className={
+                compacto
+                  ? "text-[0.55rem] font-semibold uppercase tracking-widest text-navidad-dorado"
+                  : "text-[0.65rem] font-semibold uppercase tracking-widest text-navidad-dorado sm:text-sm"
+              }
+            >
+              {etiqueta}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
